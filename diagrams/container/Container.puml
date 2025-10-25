@@ -1,0 +1,66 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(user, "Пользователь", "Смотрит фильмы через смартфон, ноутбук или Smart TV")
+
+System_Ext(rec_sys, "Внешняя рекомендательная система", "Формирует персональные рекомендации")
+System_Ext(payment_system, "Платёжная система", "Обрабатывает платежи (Сбербанк/Тинькофф)")
+System_Ext(loyalty_system, "Сервис лояльности", "Интеграция с маркетплейсами")
+
+System_Boundary(kinobezdna, "Онлайн-кинотеатр Кинобездна") {
+    Container(api_gateway, "API Gateway", "Nginx Ingress / Kong", "Единая точка входа, маршрутизация, аутентификация")
+
+    Container(auth_service, "Auth Service", "Go", "Управление аутентификацией, JWT-токены")
+    Container(user_service, "User Profile Service", "Go", "Профили пользователей, избранное, настройки")
+    Container(metadata_service, "Metadata Service", "Go", "Каталог фильмов и сериалов (MVP)")
+    Container(content_service, "Content Service", "Go", "Доступ к видео-контенту")
+    Container(billing_service, "Billing Service", "Go", "Подписки, платежи, скидки")
+    Container(analytics_service, "Analytics Service", "Go", "Аналитика и метрики")
+
+    ContainerDb(auth_db, "Auth Database", "PostgreSQL", "Хранит учётные данные, сессии")
+    ContainerDb(user_db, "User Database", "PostgreSQL", "Профили, настройки, избранное")
+    ContainerDb(metadata_db, "Metadata Database", "PostgreSQL", "Фильмы, жанры, актёры, описания")
+    ContainerDb(billing_db, "Billing Database", "PostgreSQL", "Платежи, подписки, транзакции")
+    ContainerDb(analytics_db, "Analytics Database", "PostgreSQL/ClickHouse", "События, метрики, аналитика")
+
+    ContainerQueue(message_broker, "Message Broker", "Apache Kafka", "Асинхронная коммуникация между сервисами")
+}
+
+' Connections between users and system
+Rel(user, api_gateway, "HTTPS/REST API", "JSON")
+
+' Connections from API Gateway to services
+Rel(api_gateway, auth_service, "HTTP/gRPC", "Внутренние вызовы")
+Rel(api_gateway, user_service, "HTTP/gRPC", "Внутренние вызовы")
+Rel(api_gateway, metadata_service, "HTTP/gRPC", "Внутренние вызовы")
+Rel(api_gateway, content_service, "HTTP/gRPC", "Внутренние вызовы")
+Rel(api_gateway, billing_service, "HTTP/gRPC", "Внутренние вызовы")
+
+' Database connections
+Rel(auth_service, auth_db, "Чтение/запись", "SQL")
+Rel(user_service, user_db, "Чтение/запись", "SQL")
+Rel(metadata_service, metadata_db, "Чтение/запись", "SQL")
+Rel(billing_service, billing_db, "Чтение/запись", "SQL")
+Rel(analytics_service, analytics_db, "Чтение/запись", "SQL")
+
+' Synchronous communication between services
+Rel(billing_service, user_service, "HTTP/gRPC", "Обновление статуса подписки")
+
+' Kafka messaging
+Rel(auth_service, message_broker, "Публикует", "UserRegistered")
+Rel(user_service, message_broker, "Публикует", "ProfileUpdated")
+Rel(billing_service, message_broker, "Публикует", "PaymentCompleted, SubscriptionChanged")
+Rel(content_service, message_broker, "Публикует", "VideoWatched, RatingAdded")
+
+' Kafka consumers
+Rel(message_broker, analytics_service, "Подписывается", "Все события")
+Rel(message_broker, rec_sys, "Подписывается", "Просмотры, оценки")
+Rel(message_broker, loyalty_system, "Подписывается", "Платежи, активности")
+
+' External system integrations
+Rel(billing_service, payment_system, "HTTPS API", "Обработка платежей")
+
+' External system to Kafka
+Rel(loyalty_system, message_broker, "Публикует", "LoyaltyEvents")
+
+@enduml
