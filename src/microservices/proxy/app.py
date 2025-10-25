@@ -1,4 +1,4 @@
-from flask import Flask, Response, request
+from flask import Flask, Response, request, jsonify
 import requests
 import os
 import random
@@ -25,7 +25,7 @@ MOVIES_MIGRATION_PERCENT = int(os.getenv("MOVIES_MIGRATION_PERCENT", 0))
 
 @app.route('/health')
 def health_check():
-    return jsonify({"status": "healthy", "service": "proxy"})
+    return jsonify({"status": True})
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
